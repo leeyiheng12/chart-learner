@@ -104,11 +104,12 @@ y_vals = sorted(y_vals.to_list())
 lowest_y = y_vals[0]
 highest_y = y_vals[-1]
 diff = highest_y - lowest_y
-step = (highest_y - lowest_y) / 5
+step = (highest_y - lowest_y) / 10
+upper = highest_y * 1.5
 
 st.markdown("y-axis range:")
-graph_lower_y_lim = st.number_input("From", min_value = 0.0, max_value = highest_y * 1.5, value = float(lowest_y - diff), step = step)
-graph_upper_y_lim = st.number_input("To", min_value = 0.0, max_value = highest_y * 1.5, value = float(highest_y + diff), step = step)
+graph_lower_y_lim = st.number_input("From", min_value = 0.0, max_value = upper, value = max(0.0, float(lowest_y - diff)), step = step)
+graph_upper_y_lim = st.number_input("To", min_value = 0.0, max_value = upper, value = min(upper, float(highest_y + diff)), step = step)
 
 
 # bar: width
