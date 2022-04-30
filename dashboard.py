@@ -171,8 +171,7 @@ raw_data = raw_data[raw_data["{x_var}"].notna() & raw_data["{y_var}"].notna()]
 data = raw_data.groupby("{x_var}", as_index = False).agg({{"{y_var}": "{agg_fn_name}"}})
 
 fig, axes = plt.subplots(figsize = ({fig_width}, {fig_height}))
-axes.{graph_type}(data["{x_var}"], data["{y_var}"], color = "{graph_color_choice}", width = {bar_width})
-
+axes.{graph_type}(data["{x_var}"], data["{y_var}"], color = "{graph_color_choice}", {f"width = {bar_width}" if graph_type == "bar" else ""})
 axes.set_xlabel("{x_var}")
 axes.set_ylabel("{y_var} ({agg_fn_name})")
 axes.set_ylim([{graph_lower_y_lim}, {graph_upper_y_lim}])
