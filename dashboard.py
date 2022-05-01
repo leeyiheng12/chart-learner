@@ -1,4 +1,3 @@
-import io
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -70,8 +69,8 @@ st.markdown("""---""")
 # ======================== Data axes options ========================
 
 st.sidebar.markdown(f"#### Axes")
-x_var = st.sidebar.selectbox("X-axis", categorical_cols, key = 2)
-y_var = st.sidebar.selectbox("Y-axis", numerical_cols, key = 3)
+x_vars = st.sidebar.multiselect("X-axis", categorical_cols, default = categorical_cols[0])
+y_vars = st.sidebar.multiselect("Y-axis", numerical_cols, default = numerical_cols[0])
 
 agg_boolean_choice = st.sidebar.radio("Aggregate?", ["Yes", "No"])
 is_agg = agg_boolean_choice == "Yes"
@@ -79,19 +78,19 @@ is_agg = agg_boolean_choice == "Yes"
 aggregation_options = {
     "Sum": "sum",
     "Average": "mean",
+    "Count": "count",
     "Median": "median",
     "Minimum": "min",
     "Maximum": "max",
     "Standard Deviation": "std",
-    "Variance": "var",
-    "Mad": "mad",
-    "Prod": "prod",
+    "Variance": "var"
 }
 
-aggregation_choice = agg_fn_name = None
+y_vars_aggfn_mappings = {}
 if is_agg:
-    aggregation_choice = st.sidebar.selectbox("Aggregation", aggregation_options.keys())
-    agg_fn_name = aggregation_options[aggregation_choice]
+    for y_var in y_vars:
+        aggregation_choice = st.sidebar.selectbox(f"Aggregation for {y_var}", aggregation_options.keys(), key = y_var)
+        y_vars_aggfn_mappings[y_var] = aggregation_options[aggregation_choice]
 
 st.sidebar.markdown("""---""")
 
@@ -102,26 +101,20 @@ st.sidebar.markdown(f"#### Chart Options")
 # ======= Bar/Plot/Scatter =======
 
 if is_agg:
-    graph_type_options = {
+    chart_type_options = {
         "Bar Chart": "bar",
         "Line Plot": "plot",
         "Scatter Plot": "scatter"
     }
-    graph_type_choice = st.sidebar.radio("Graph type", graph_type_options.keys())
-    graph_type = graph_type_options[graph_type_choice]
+    chart_type_choice = st.sidebar.radio("Graph type", chart_type_options.keys())
+    chart_type = chart_type_options[chart_type_choice]
 else:
-    graph_type = "scatter"
+    chart_type = "scatter"
 
-
-# ======= Bar width =======
-
-bar_width = None
-if graph_type == "bar":
-    bar_width = st.sidebar.slider("Bar width", min_value = 0.0, max_value = 2.0, value = 0.8, step = 0.1)
 
 # ======= Chart color =======
 
-graph_color_choice = st.sidebar.color_picker("Graph color", value = "#00E1FF")
+chart_color = st.sidebar.color_picker("Chart color", value = "#00E1FF")
 
 fig_width = st.sidebar.slider("Figure width", min_value = 0, max_value = 12, value = 8, step = 1)
 fig_height = st.sidebar.slider("Figure height", min_value = 0, max_value = 12, value = 6, step = 1)
@@ -136,93 +129,155 @@ st.sidebar.markdown("""---""")
 
 st.sidebar.markdown(f"#### Axes Options")
 
-if is_agg:
-    data = raw_data[raw_data[x_var].notna() & raw_data[y_var].notna()]
-    y_vals = data.groupby(x_var, as_index = False).agg({y_var: agg_fn_name})[y_var]
-else:
-    data = raw_data[raw_data[x_var].notna() & raw_data[y_var].notna()]
-    y_vals = data[y_var]
-
-y_vals = sorted(y_vals.to_list())
-lowest_y = y_vals[0]
-highest_y = y_vals[-1]
-diff = highest_y - lowest_y
-step = (highest_y - lowest_y) / 10
-upper = highest_y * 1.5
-
-st.sidebar.markdown("y-axis range:")
-graph_lower_y_lim = st.sidebar.number_input("From", min_value = 0.0, max_value = upper, value = max(0.0, float(lowest_y - diff)), step = step)
-graph_upper_y_lim = st.sidebar.number_input("To", min_value = 0.0, max_value = upper, value = min(upper, float(highest_y + diff)), step = step)
-
-st.sidebar.markdown("""---""")
 
 # change labels and title (textboxes)
 # options for tick marks???
 
+
 # ======================== Display ========================
 
-fig, axes = plt.subplots()
-
-aggregated_code = f"""
-# removes rows where "{x_var}" or "{y_var}" is NaN
-raw_data = raw_data[raw_data["{x_var}"].notna() & raw_data["{y_var}"].notna()]  
-
-# group raw_data by "{x_var}", for each unique value of "{x_var}", calculate the {agg_fn_name} of "{y_var}"
-data = raw_data.groupby("{x_var}", as_index = False).agg({{"{y_var}": "{agg_fn_name}"}})
-
-fig, axes = plt.subplots(figsize = ({fig_width}, {fig_height}))
-axes.{graph_type}(data["{x_var}"], data["{y_var}"], color = "{graph_color_choice}", {f"width = {bar_width}" if graph_type == "bar" else ""})
-axes.set_xlabel("{x_var}")
-axes.set_ylabel("{y_var} ({agg_fn_name})")
-axes.set_ylim([{graph_lower_y_lim}, {graph_upper_y_lim}])
-axes.set_title("{aggregation_choice} of {y_var} across {x_var}")
+if len(x_vars) == 0 or len(y_vars) == 0:
+    st.stop()
+    
+input_vars_code = f"""
+x_vars = {x_vars}
+y_vars = {y_vars}
+{f"is_agg = {is_agg}" if is_agg else ""}
+{f"y_vars_aggfn_mappings = {y_vars_aggfn_mappings}" if is_agg else ""}
+fig_width = {fig_width}
+fig_height = {fig_height}
+chart_color = "{chart_color}"
 """
 
-non_aggregated_code = f"""
+remove_raw_data_code = """
+# removes rows where relevant columns are NA
+for var in x_vars + y_vars:
+    raw_data = raw_data[raw_data[var].notna()]"""
+exec(remove_raw_data_code)
 
-# removes rows where "{x_var}" or "{y_var}" is NaN
-data = raw_data[raw_data["{x_var}"].notna() & raw_data["{y_var}"].notna()]  
 
-fig, axes = plt.subplots(figsize = ({fig_width}, {fig_height}))
-axes.{graph_type}(data["{x_var}"], data["{y_var}"], color = "{graph_color_choice}")
+get_rows_and_cols_code = f"""
+# each row has a unique aggregation of each y_var
+num_rows = len(y_vars)
 
-axes.set_xlabel("{x_var}")
-axes.set_ylabel("{y_var}")
-axes.set_ylim([{graph_lower_y_lim}, {graph_upper_y_lim}])
-axes.set_title(f"{y_var} across {x_var}")
+# recursively get unique categories for each column
+def split_x_vars(depth, data, x_vars_to_split):
+    if depth == len(x_vars_to_split): 
+        return None, 1
+
+    all_split_data = {{}}
+
+    x_var = x_vars_to_split[depth]
+    unique_vals = data[x_var].unique()
+
+    num_cols = 0
+    for unique_val in unique_vals:
+        splitted_data = data[data[x_var] == unique_val]
+        all_split_data[unique_val], inner_num_cols = split_x_vars(depth + 1, splitted_data, x_vars_to_split)
+
+        num_cols += inner_num_cols
+    
+    return all_split_data, num_cols
+
+
+unique_sep = ">>"  # hopefully this is not in any column name
+if len(x_vars) == 1:
+    flattened_x_vars = raw_data["{x_vars[0]}"].unique()
+    num_cols = len(flattened_x_vars)
+else:
+    # each column is based on "{x_vars[-1]}"
+    splitted_x_vars, num_cols = split_x_vars(0, raw_data, x_vars[:-1])
+    flattened_x_vars = pd.json_normalize(splitted_x_vars, sep = unique_sep).columns.tolist()"""
+exec(get_rows_and_cols_code)
+
+
+plot_code = f"""
+overall_title = " / ".join(x_vars)
+sub_titles = []
+
+fig, axes = plt.subplots(num_rows, num_cols, sharex = "col", sharey = "row", figsize = (fig_width, fig_height))
+
+# plots:
+# (0, 0), (0, 1), ...
+# (1, 0), (1, 1), ...
+for j in range(num_cols):
+
+    # each col is a unique combination of x_vars[:-1]
+    col_details = flattened_x_vars[j].split(unique_sep)
+
+    # split the data into the unique combination of values
+    filtered_data = raw_data
+    for k in range(len(col_details)):
+        category_name = x_vars[k]
+        sub_detail = col_details[k]
+        filtered_data = filtered_data[filtered_data[category_name] == sub_detail]
+        if len(sub_titles) == k:
+            sub_titles.append([])
+        
+        if sub_detail not in sub_titles[k]:
+            sub_titles[k].append(sub_detail)
+
+    # break the chart into unique values of "{x_vars[-1]}"
+    x = filtered_data["{x_vars[-1]}"].unique()
+
+    final_data = {"filtered_data.groupby(x_vars[-1], as_index = False).agg(y_vars_aggfn_mappings)" if is_agg else "filtered_data"}
+    
+    for i, y in enumerate(y_vars):
+
+        if num_rows == 1:
+            specific_plot = axes[j]
+        else:
+            specific_plot = axes[i, j]
+
+        specific_plot.{chart_type if is_agg else "scatter"}(final_data["{x_vars[-1]}"], final_data[y], color = chart_color)
+        specific_plot.tick_params("x", labelrotation = 90)
+        specific_plot.grid(axis = "y", linewidth = 0.3)  # https://www.w3schools.com/python/matplotlib_grid.asp
+        specific_plot.set_axisbelow(True)
+
+        if i == 0:
+            specific_plot.set_title(col_details[-1])
+        if j == 0:
+            specific_plot.set_ylabel(f"{{y}}{" ({y_vars_aggfn_mappings[y]})" if is_agg else ""}")
+
+sub_titles.pop()
+final_title = [overall_title] + ["               |               ".join(i) for i in sub_titles]
+fig.suptitle("\\n".join(final_title))
 """
+exec(plot_code)
 
+# # group raw_data by "Order Priority", for each unique value of "Order Priority", calculate the sum of "Row ID"
+# data = raw_data.groupby("Order Priority", as_index = False).agg({"Row ID": "sum"})
 
-code_to_run = aggregated_code if is_agg else non_aggregated_code
+# axes.plot(data["Order Priority"], data["Row ID"], color = "#00E1FF")
 
-exec(code_to_run)
+# axes.set_xlabel("Order Priority")
+# axes.set_ylabel("Row ID (sum)")
+# axes.set_ylim([32788252.0, 43926232.0])
 
-st.markdown("### Results")
-
-# workaround to allow resizing of plot 
-# see https://discuss.streamlit.io/t/cannot-change-matplotlib-figure-size/10295/8
-# note: doesn't work
-
-buffer = io.BytesIO()
-fig.savefig(buffer, format="png")
-st.image(buffer)
-# st.pyplot(fig)
-
-
-import_statements = f"""
+import_code = """
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd"""
 
-read_data_statements = f"""
+read_data_code = f"""
 raw_data = pd.read_csv("{file_name}", encoding = "unicode_escape")"""
 
-agg_code = f"""
-{import_statements}
-{read_data_statements}
-{code_to_run}
+explanation_code = f"""
+# flattened_x_vars: {flattened_x_vars}"""
+
+
+code = f"""
+{import_code}
+{read_data_code}
+{input_vars_code}
+{remove_raw_data_code}
+{get_rows_and_cols_code}
+{explanation_code}
+{plot_code}
 plt.show()
-
 """
-st.code(agg_code, language = "python")
 
+
+st.markdown("### Results")
+st.pyplot(fig)
+st.code(code, language = "python")
